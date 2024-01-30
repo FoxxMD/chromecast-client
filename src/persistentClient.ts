@@ -2,11 +2,9 @@ import {EventEmitter} from 'events'
 import {clearInterval} from 'node:timers'
 
 import {Client} from 'castv2'
-import Debug from 'debug'
 
 import {createChannel} from './channel'
-import {withTimeout} from './utils'
-const debug = Debug('persistent-client')
+import {createLogger, ILogger, nullLogger, withTimeout} from './utils'
 
 export interface PersistentClientOptions {
   host: string
@@ -14,6 +12,7 @@ export interface PersistentClientOptions {
   retryDelay?: number
   port?: number
   timeout?: number
+  logger?: ILogger
 }
 
 export class PersistentClient extends EventEmitter {
@@ -23,17 +22,19 @@ export class PersistentClient extends EventEmitter {
   shouldReconnect: boolean
   connected: boolean
   private interval?: number
-  private options: Required<Omit<PersistentClientOptions, 'client'>>
+  private options: Required<Omit<PersistentClientOptions, 'client' | 'logger'>>
+  private logger: ILogger
 
   constructor(options: PersistentClientOptions) {
     super()
-    const {host, client = new Client(), retryDelay = 5000, port = 8009, timeout = 3000} = options
+    const {host, client = new Client(), retryDelay = 5000, port = 8009, timeout = 3000, logger = nullLogger} = options
     this.options = {
       host,
       retryDelay,
       port,
       timeout,
     }
+    this.logger = createLogger(logger)
     this.client = client
     this.client.on('close', () => {
       this.connected = false
@@ -54,11 +55,15 @@ export class PersistentClient extends EventEmitter {
         if (self.connected) {
           self.send('sender-0', 'receiver-0', 'urn:x-cast:com.google.cast.tp.heartbeat', JSON.stringify({type: 'PING'}))
         } else if (self.shouldReconnect) {
-          debug(`client reconnecting in ${self.options.retryDelay}ms`)
+          self.emit('reconnecting')
+          self.logger.debug('client is trying to reconnect')
           try {
             await self.connect()
+            self.emit('reconnected')
+            self.logger.debug('client reconnected!')
           } catch (e) {
             self.emit('error', e)
+            self.logger.debug(`client could not reconnect, will retry in ${self.options.retryDelay}ms`)
           }
         } else {
           clearInterval(self.interval)
@@ -77,8 +82,9 @@ export class PersistentClient extends EventEmitter {
     try {
       await withTimeout({timeout: this.options.timeout})(
         new Promise<void>(resolve => {
+          this.emit('connecting')
           this.client.connect({host: this.options.host, port: this.options.port}, () => {
-            this.emit('connect')
+            this.emit('connected')
             this.connected = true
             if (this.interval === undefined) {
               this.heartbeat()
@@ -93,7 +99,7 @@ export class PersistentClient extends EventEmitter {
   }
 
   close = () => {
-    debug('permanently closing client...')
+    this.logger.debug('permanently closing client...')
     this.shouldReconnect = false
     this.client.close()
     clearInterval(this.interval)

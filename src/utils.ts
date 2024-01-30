@@ -1,3 +1,4 @@
+import Debug from 'debug'
 import {z} from 'zod'
 import * as zod from 'zod'
 import {ValidationError} from 'zod-validation-error'
@@ -78,4 +79,37 @@ export const fromValidationError = (err: ValidationError, data: MaybeJson | stri
   const cError = new ContextualValidationError(err.message, data, err.details)
   cError.stack = err.stack
   return cError
+}
+
+export interface ILogger {
+  error: (first: any, ...rest: any) => any
+  warn: (first: any, ...rest: any) => any
+  info: (first: any, ...rest: any) => any
+  verbose: (first: any, ...rest: any) => any
+  debug: (first: any, ...rest: any) => any
+}
+
+const debugFunc = Debug('persistent-client')
+
+export const createLogger = (logger: ILogger) => {
+  const {debug, ...rest} = logger
+  return {
+    ...rest,
+    debug: (first: any, ...rest: any) => {
+      if (first instanceof Error) {
+        debugFunc(first.message)
+      } else {
+        debugFunc(first)
+      }
+      debug(first, ...rest)
+    },
+  }
+}
+
+export const nullLogger: ILogger = {
+  error: () => {},
+  warn: () => {},
+  info: () => {},
+  verbose: () => {},
+  debug: () => {},
 }
