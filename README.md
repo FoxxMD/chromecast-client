@@ -4,6 +4,20 @@
 ![Types][types-image]
 [![Patreon][patreon-image]][patreon-url]
 
+## FORK Changes
+
+This is a fork of https://github.com/dantaylor3/chromecast-client with several quality of life improvements and fixes:
+
+* Make some [MediaController status properties optional](https://github.com/dantaylor3/chromecast-client/pull/14) to better fit real world data
+* [Format zod errors to be human friendly and return raw data in unwrapped error](https://github.com/dantaylor3/chromecast-client/pull/16)
+* `PersistentClient` is now a class instead of a function
+  * Fixes unhandled timeout rejection on `connect`
+  * Allows initiating `connect` separately from instantiation using `await persistentClient.connect()` 
+    * `connect()` is still exported at top-level to prevent breaking change
+  * Better reconnection logic
+  * is an `EventEmitter` that re-emits `castv2` events
+  * exposes `castv2` client, `connected` and `shouldReconnect` fields
+
 ## A Typescript based Chromecast client
 This module is a mid-level library which uses [castv2](https://github.com/thibauts/node-castv2) as a basis for communicating with a Chromecast to provide a fully typed, promise-based api for interacting with the Chromecast. It provides
 * a persistent client that will keep your client connected to the Chromecast
@@ -18,12 +32,12 @@ This module is intended to be composable and reusable for other use cases outsid
 ## Installation
 **Install with Yarn**
 ```sh
-yarn add chromecast-client
+yarn add @foxxmd/chromecast-client
 ```
 
 **Install with NPM**
 ```sh
-npm install chromecast-client
+npm install @foxxmd/chromecast-client
 ```
 
 ## Usage
@@ -32,9 +46,11 @@ npm install chromecast-client
 The platform provides basic controls for the Chromecast like changing the volume and launching applications.
 
 ```ts
-import {createPlatform, connect} from 'chromecast-client'
+import {createPlatform, Persistentclient} from 'chromecast-client'
+import {PersistentClient} from './persistentClient'
 
-const client = await connect({host: '192.168.1.150'})
+const client = new PersistentClient({host: '192.168.1.150'})
+await client.connect()
 const platform = await createPlatform(client)
 const status = await platform.getStatus()
 console.log('current status', status)
@@ -81,9 +97,10 @@ client.close()
 We're going to use the Media controller to get the current volume of the Chromecast.
 
 ```ts
-import {connect, ReceiverController} from 'chromecast-client'
+import {PersistentClient, ReceiverController} from 'chromecast-client'
 
-const client = await connect({host: '192.168.1.150'})
+const client = new PersistentClient({host: '192.168.1.150'})
+await client.connect()
 
 // launch the media app on the Chromecast and join the session (so we can control the CC)
 const controller = ReceiverController.createReceiver({client})
@@ -117,10 +134,11 @@ An application is an abstraction on top of one or more controllers that provides
 We're going to use the DefaultMediaApp to launch the media app on the chromecast, play some content, control the playback of that content, then stop playing the content
 
 ```ts
-import {DefaultMediaApp, connect, Result} from 'chromecast-client'
+import {DefaultMediaApp, PersistentClient, Result} from 'chromecast-client'
 
 // create a persistent client connected on a given host
-const client = await connect({host: '192.168.1.150'})
+const client = new PersistentClient({host: '192.168.1.150'})
+await client.connect()
 
 // launch the media app on the Chromecast and join the session (so we can control the CC)
 const media = await DefaultMediaApp.launchAndJoin({client}).then(Result.unwrapWithErr)
