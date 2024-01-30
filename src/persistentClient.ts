@@ -50,6 +50,7 @@ export class PersistentClient extends EventEmitter {
   }
 
   heartbeat() {
+    // noinspection TypeScriptValidateTypes
     this.interval = setInterval(function (self) {
       return async () => {
         if (self.connected) {
@@ -59,10 +60,10 @@ export class PersistentClient extends EventEmitter {
           self.logger.debug('client is trying to reconnect')
           try {
             await self.connect()
-            self.emit('reconnected')
+            self.emit('reconnect')
             self.logger.debug('client reconnected!')
           } catch (e) {
-            self.emit('error', e)
+            self.emit('reconnect', e)
             self.logger.debug(`client could not reconnect, will retry in ${self.options.retryDelay}ms`)
           }
         } else {
@@ -84,7 +85,7 @@ export class PersistentClient extends EventEmitter {
         new Promise<void>(resolve => {
           this.emit('connecting')
           this.client.connect({host: this.options.host, port: this.options.port}, () => {
-            this.emit('connected')
+            this.emit('connect')
             this.connected = true
             if (this.interval === undefined) {
               this.heartbeat()
